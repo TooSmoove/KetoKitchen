@@ -1,0 +1,1202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Keto Recipe Builder</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Spline+Sans+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* ============================ Design tokens ============================ */
+:root{
+  --ink:#211032;            /* deep plum-black text */
+  --ink-soft:#5d5168;
+  --brand:#5b2a91;          /* plum — primary actions */
+  --brand-d:#46206f;
+  --brand-tint:#efe7f7;
+  --paper:#faf7f2;          /* warm clean surface (not cream-serif cliché) */
+  --card:#ffffff;
+  --line:#e9e2d8;
+  --line-2:#f0ebe2;
+  --accent:#e29a2e;         /* honey */
+  --fat:#388e3c;            /* macro colours preserved from the app */
+  --protein:#1976d2;
+  --carbs:#f4511e;
+  --yes:#2e7d32;
+  --no:#b71c1c;
+  --shadow:0 1px 2px rgba(33,16,50,.06),0 8px 24px rgba(33,16,50,.06);
+  --radius:16px;
+  --radius-s:10px;
+  --display:"Space Grotesk",system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+  --body:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+  --mono:"Spline Sans Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  font-family:var(--body);color:var(--ink);background:var(--paper);
+  -webkit-font-smoothing:antialiased;line-height:1.45;
+  padding-bottom:calc(72px + env(safe-area-inset-bottom));
+}
+h1,h2,h3,.display{font-family:var(--display);letter-spacing:-.02em;margin:0}
+.num{font-family:var(--mono);font-variant-numeric:tabular-nums;font-feature-settings:"tnum"}
+button{font-family:inherit}
+a{color:var(--brand);text-decoration:none}
+
+/* ============================ Layout ============================ */
+.shell{max-width:680px;margin:0 auto;min-height:100vh}
+header.app{
+  position:sticky;top:0;z-index:30;background:rgba(250,247,242,.9);
+  backdrop-filter:saturate(1.4) blur(10px);border-bottom:1px solid var(--line);
+  padding:calc(12px + env(safe-area-inset-top)) 18px 12px;
+}
+header.app .row{display:flex;align-items:center;gap:10px}
+header.app .mark{width:30px;height:30px;border-radius:9px;background:var(--brand);
+  display:grid;place-items:center;color:#fff;font-family:var(--display);font-weight:700;font-size:18px;flex:0 0 auto}
+header.app h1{font-size:19px;font-weight:600}
+header.app .sub{font-size:12px;color:var(--ink-soft);margin-left:auto;font-family:var(--mono)}
+main{padding:18px 16px 24px}
+.view{display:none;animation:fade .25s ease}
+.view.active{display:block}
+@keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+
+/* ============================ Bottom nav ============================ */
+nav.tabbar{
+  position:fixed;left:0;right:0;bottom:0;z-index:40;
+  background:rgba(255,255,255,.94);backdrop-filter:blur(12px);
+  border-top:1px solid var(--line);
+  padding-bottom:env(safe-area-inset-bottom);
+  display:flex;justify-content:center;
+}
+nav.tabbar .inner{max-width:680px;width:100%;display:grid;grid-template-columns:repeat(4,1fr)}
+nav.tabbar button{
+  background:none;border:0;padding:9px 4px 8px;display:flex;flex-direction:column;align-items:center;gap:3px;
+  color:var(--ink-soft);cursor:pointer;font-size:11px;font-weight:500;
+}
+nav.tabbar button svg{width:23px;height:23px;stroke:currentColor;fill:none;stroke-width:1.7}
+nav.tabbar button.active{color:var(--brand)}
+nav.tabbar button.active svg{stroke:var(--brand)}
+
+/* ============================ Cards / lists ============================ */
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow)}
+.recipe-card{padding:15px 16px;margin-bottom:12px;cursor:pointer;transition:transform .12s,box-shadow .12s}
+.recipe-card:active{transform:scale(.99)}
+.recipe-card .name{font-family:var(--display);font-weight:600;font-size:17px}
+.recipe-card .meta{color:var(--ink-soft);font-size:13px;margin-top:2px}
+.recipe-card .macros{display:flex;gap:14px;margin-top:11px;font-size:12.5px}
+.recipe-card .macros span{color:var(--ink-soft)}
+.recipe-card .macros b{font-family:var(--mono);color:var(--ink);font-weight:600}
+.tag{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;
+  padding:3px 9px;border-radius:999px;font-family:var(--mono)}
+.tag.keto{background:#e7f3e8;color:var(--yes)}
+.tag.notketo{background:#fbe9e7;color:var(--no)}
+.tag.est{background:#fff4e2;color:#9a6212}
+
+/* ============================ Buttons ============================ */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;
+  border:1px solid var(--line);background:var(--card);color:var(--ink);
+  padding:11px 16px;border-radius:var(--radius-s);font-weight:600;font-size:14.5px;cursor:pointer;
+  transition:filter .12s,transform .1s}
+.btn:active{transform:scale(.98)}
+.btn.primary{background:var(--brand);border-color:var(--brand);color:#fff}
+.btn.primary:hover{filter:brightness(1.06)}
+.btn.ghost{background:transparent;border-color:transparent;color:var(--brand)}
+.btn.sm{padding:7px 11px;font-size:13px}
+.btn.full{width:100%}
+.btn.danger{color:var(--no);border-color:#f3c9c4}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.fab{position:fixed;right:18px;bottom:calc(84px + env(safe-area-inset-bottom));z-index:35;
+  width:56px;height:56px;border-radius:18px;background:var(--brand);color:#fff;border:0;
+  box-shadow:0 8px 22px rgba(91,42,145,.4);font-size:28px;cursor:pointer;display:grid;place-items:center}
+
+/* ============================ Forms ============================ */
+label.fld{display:block;margin:14px 0 6px;font-size:13px;font-weight:600;color:var(--ink-soft)}
+input,select,textarea{
+  width:100%;font-family:inherit;font-size:15px;color:var(--ink);background:var(--card);
+  border:1px solid var(--line);border-radius:var(--radius-s);padding:11px 12px;outline:none;transition:border .12s,box-shadow .12s}
+input:focus,select:focus,textarea:focus{border-color:var(--brand);box-shadow:0 0 0 3px var(--brand-tint)}
+textarea{resize:vertical;min-height:74px}
+.inline{display:flex;gap:8px}
+.inline>*{flex:1}
+.search{display:flex;align-items:center;gap:9px;background:var(--card);border:1px solid var(--line);
+  border-radius:999px;padding:9px 15px;margin-bottom:14px}
+.search input{border:0;padding:0;background:none;box-shadow:none!important}
+.search svg{width:18px;height:18px;stroke:var(--ink-soft);fill:none;stroke-width:1.8;flex:0 0 auto}
+
+/* ============================ Detail page ============================ */
+.detail-hero{padding:18px;margin-bottom:14px}
+.detail-hero h2{font-size:23px;margin-bottom:4px}
+.detail-hero .desc{color:var(--ink-soft);font-size:14.5px;margin-top:6px}
+.donut-wrap{display:flex;gap:18px;align-items:center;margin:16px 0 4px}
+canvas.donut{width:128px;height:128px;flex:0 0 auto}
+.macro-legend{flex:1;display:flex;flex-direction:column;gap:9px}
+.macro-row{display:flex;align-items:center;gap:9px;font-size:13.5px}
+.dot{width:11px;height:11px;border-radius:3px;flex:0 0 auto}
+.macro-row .g{margin-left:auto;font-family:var(--mono);font-weight:600}
+.stat-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin:14px 0}
+.stat{background:var(--brand-tint);border-radius:var(--radius-s);padding:12px 14px}
+.stat .k{font-size:11.5px;color:var(--brand-d);font-weight:600;text-transform:uppercase;letter-spacing:.04em}
+.stat .v{font-family:var(--mono);font-size:21px;font-weight:600;margin-top:3px}
+.stat .v small{font-size:12px;color:var(--ink-soft);font-weight:500}
+.section-h{font-family:var(--display);font-weight:600;font-size:16px;margin:20px 0 9px;display:flex;align-items:center;gap:8px}
+ul.clean{list-style:none;margin:0;padding:0}
+.ing-line{display:flex;gap:8px;padding:10px 0;border-bottom:1px solid var(--line-2);font-size:14.5px}
+.ing-line .amt{font-family:var(--mono);color:var(--brand-d);font-weight:600;min-width:64px}
+.step-line{display:flex;gap:12px;padding:11px 0;border-bottom:1px solid var(--line-2)}
+.step-line .n{font-family:var(--mono);font-weight:600;color:var(--brand);flex:0 0 auto}
+
+/* editable ingredient/step chips in the editor */
+.edit-item{display:flex;align-items:flex-start;gap:8px;background:var(--paper);border:1px solid var(--line);
+  border-radius:var(--radius-s);padding:10px 12px;margin-bottom:8px;font-size:14px}
+.edit-item .body{flex:1;min-width:0}
+.edit-item .x{background:none;border:0;color:var(--no);font-size:18px;cursor:pointer;line-height:1;padding:2px 4px}
+.muted{color:var(--ink-soft);font-size:13.5px}
+.empty{text-align:center;color:var(--ink-soft);padding:44px 20px}
+.empty .big{font-size:40px;margin-bottom:8px}
+.empty h3{font-family:var(--display);font-weight:600;color:var(--ink);margin-bottom:4px}
+
+/* sheet / modal */
+.sheet-bg{position:fixed;inset:0;background:rgba(20,8,33,.42);z-index:60;display:none;align-items:flex-end;justify-content:center}
+.sheet-bg.open{display:flex}
+.sheet{background:var(--paper);width:100%;max-width:680px;border-radius:22px 22px 0 0;
+  max-height:92vh;overflow:auto;padding:18px 16px calc(20px + env(safe-area-inset-bottom));
+  box-shadow:0 -8px 40px rgba(20,8,33,.25);animation:slideup .26s cubic-bezier(.2,.8,.2,1)}
+@keyframes slideup{from{transform:translateY(100%)}to{transform:none}}
+.sheet .grab{width:38px;height:4px;border-radius:99px;background:var(--line);margin:0 auto 14px}
+.sheet h3{font-size:18px;margin-bottom:4px}
+
+/* suggestions dropdown */
+.suggest{border:1px solid var(--line);border-radius:var(--radius-s);overflow:hidden;margin-top:6px;background:var(--card)}
+.suggest button{display:block;width:100%;text-align:left;background:none;border:0;border-bottom:1px solid var(--line-2);
+  padding:10px 12px;font-size:13.5px;cursor:pointer;color:var(--ink)}
+.suggest button:last-child{border-bottom:0}
+.suggest button:hover{background:var(--brand-tint)}
+
+/* toast */
+.toast{position:fixed;left:50%;bottom:calc(92px + env(safe-area-inset-bottom));transform:translateX(-50%);
+  background:var(--ink);color:#fff;padding:11px 18px;border-radius:999px;font-size:13.5px;font-weight:500;
+  z-index:80;opacity:0;pointer-events:none;transition:opacity .25s,transform .25s;white-space:nowrap;max-width:90vw}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(-6px)}
+
+/* misc */
+.pill-row{display:flex;flex-wrap:wrap;gap:7px;margin-top:6px}
+.pill-row button{border:1px solid var(--line);background:var(--card);border-radius:999px;padding:7px 13px;
+  font-family:var(--mono);font-size:13px;cursor:pointer;color:var(--ink)}
+.pill-row button.on{background:var(--brand);color:#fff;border-color:var(--brand)}
+.divider{height:1px;background:var(--line);margin:18px 0}
+.note{background:#fff7e9;border:1px solid #f0dcae;color:#7a5410;border-radius:var(--radius-s);
+  padding:11px 13px;font-size:13px;margin:10px 0}
+.checkrow{display:flex;align-items:center;gap:11px;padding:12px 4px;border-bottom:1px solid var(--line-2)}
+.checkrow input[type=checkbox]{width:21px;height:21px;flex:0 0 auto;accent-color:var(--brand)}
+.checkrow.done .lbl{text-decoration:line-through;color:var(--ink-soft)}
+.checkrow .lbl{flex:1}
+.checkrow .src{font-size:11px;color:var(--ink-soft);font-family:var(--mono)}
+.day-card{padding:14px 16px;margin-bottom:12px}
+.day-card .dh{display:flex;align-items:baseline;gap:8px;margin-bottom:8px}
+.day-card .dh h3{font-size:16px}
+.day-card .dh .tot{margin-left:auto;font-family:var(--mono);font-size:12.5px;color:var(--ink-soft)}
+.meal{padding:9px 0;border-top:1px solid var(--line-2);font-size:14px}
+.meal .ml{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--brand);font-weight:600}
+.meal .mm{font-family:var(--mono);font-size:12px;color:var(--ink-soft);margin-top:2px}
+.kv{display:flex;justify-content:space-between;padding:11px 0;border-bottom:1px solid var(--line-2);font-size:14.5px}
+.kv .lbl{color:var(--ink-soft)}
+.toggle{position:relative;width:44px;height:26px;flex:0 0 auto}
+.toggle input{opacity:0;width:0;height:0}
+.toggle .tk{position:absolute;inset:0;background:var(--line);border-radius:999px;transition:.2s;cursor:pointer}
+.toggle .tk:before{content:"";position:absolute;width:20px;height:20px;left:3px;top:3px;background:#fff;border-radius:50%;transition:.2s;box-shadow:0 1px 3px rgba(0,0,0,.25)}
+.toggle input:checked+.tk{background:var(--brand)}
+.toggle input:checked+.tk:before{transform:translateX(18px)}
+.spinner{width:18px;height:18px;border:2.5px solid var(--brand-tint);border-top-color:var(--brand);border-radius:50%;animation:spin .7s linear infinite;display:inline-block}
+@keyframes spin{to{transform:rotate(360deg)}}
+.backbtn{background:none;border:0;color:var(--brand);font-size:14.5px;font-weight:600;cursor:pointer;padding:0;margin-bottom:10px;display:inline-flex;align-items:center;gap:5px}
+</style>
+</head>
+<body>
+<div class="shell">
+  <header class="app">
+    <div class="row">
+      <div class="mark">K</div>
+      <h1>Keto Recipe Builder</h1>
+      <span class="sub" id="storageBadge">·</span>
+    </div>
+  </header>
+
+  <main>
+    <!-- ===== Recipe list ===== -->
+    <section id="view-list" class="view active">
+      <div class="search">
+        <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+        <input id="searchInput" type="text" placeholder="Search recipes…" autocomplete="off">
+      </div>
+      <div id="recipeList"></div>
+    </section>
+
+    <!-- ===== Recipe detail ===== -->
+    <section id="view-detail" class="view"></section>
+
+    <!-- ===== Add / edit ===== -->
+    <section id="view-edit" class="view"></section>
+
+    <!-- ===== Meal planner ===== -->
+    <section id="view-plan" class="view"></section>
+
+    <!-- ===== Shopping list ===== -->
+    <section id="view-shop" class="view"></section>
+
+    <!-- ===== Settings ===== -->
+    <section id="view-settings" class="view"></section>
+  </main>
+
+  <button class="fab" id="fab" title="New recipe">+</button>
+
+  <nav class="tabbar"><div class="inner">
+    <button data-tab="list" class="active">
+      <svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10"/></svg>Recipes</button>
+    <button data-tab="plan">
+      <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/></svg>Plan</button>
+    <button data-tab="shop">
+      <svg viewBox="0 0 24 24"><path d="M5 7h14l-1 12H6L5 7zM9 7V5a3 3 0 0 1 6 0v2"/></svg>Shop</button>
+    <button data-tab="settings">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1l2-1.5-2-3.4-2.3 1a7 7 0 0 0-1.7-1L14.5 2h-5l-.4 2.6a7 7 0 0 0-1.7 1l-2.3-1-2 3.4 2 1.5a7 7 0 0 0 0 2l-2 1.5 2 3.4 2.3-1a7 7 0 0 0 1.7 1l.4 2.6h5l.4-2.6a7 7 0 0 0 1.7-1l2.3 1 2-3.4-2-1.5a7 7 0 0 0 .1-1z"/></svg>Settings</button>
+  </div></nav>
+</div>
+
+<div class="sheet-bg" id="sheetBg"><div class="sheet" id="sheet"></div></div>
+<div class="toast" id="toast"></div>
+
+<script>
+"use strict";
+/* ====================================================================
+   KETO RECIPE BUILDER — web port of the .NET MAUI app.
+   Plain HTML/CSS/JS. Persistence via IndexedDB (in-memory fallback).
+   No backend, no login, no hardcoded secrets.
+   ==================================================================== */
+
+/* -------------------- Domain constants (ported) -------------------- */
+const KETO_NET_CARB_LIMIT = 5.0;            // g net carbs / 100g => keto friendly
+const CAL = { fat:9, protein:4, carbs:4 };  // kcal per gram
+
+// unit -> grams (NutritionService.GramsPerUnit)
+const GRAMS_PER_UNIT = {
+  tsp:5, tbsp:15, "fl oz":30, cup:240, pt:480, qt:960, gal:3840,
+  ml:1, l:1000, oz:28.35, lb:453.6, g:1, kg:1000, whole:100, slice:30,
+  pinch:.3, dash:.6, clove:5, can:400, pkg:200, serving:100
+};
+const UNIT_OPTIONS = ["tsp","tbsp","fl oz","cup","pt","qt","ml","l","oz","lb","g","kg",
+  "whole","slice","pinch","dash","clove","can","pkg","serving"];
+
+// amount label -> double (AmountParser + fraction picker)
+const FRACTIONS = ["¼","⅓","½","⅔","¾","1","1¼","1½","1¾","2","2½","3","3½","4","5","6","8","10","12"];
+const FRACTION_VAL = {"¼":.25,"⅓":.333,"½":.5,"⅔":.667,"¾":.75,"1¼":1.25,"1½":1.5,"1¾":1.75,
+  "2½":2.5,"3½":3.5,"4½":4.5,"1 1/2":1.5,"2 1/2":2.5};
+function parseAmount(label){
+  if(!label) return 1;
+  const t=String(label).trim();
+  if(FRACTION_VAL[t]!=null) return FRACTION_VAL[t];
+  const n=parseFloat(t); return isNaN(n)?1:n;
+}
+function toGrams(amount,unit){ const g=GRAMS_PER_UNIT[(unit||"").trim()]; return g!=null?amount*g:amount; }
+
+/* -------------------- Macro / keto helpers -------------------- */
+function netCarbs(carbs,fiber){ if(carbs==null) return null; return carbs-(fiber||0); }
+function caloriesPerServing(r){ return hasPerServing(r)? r.totalCalories/r.servingCount : null; }
+function hasNutrition(r){ return r.totalCalories!=null && r.totalCarbs!=null; }
+function hasYield(r){ return r.servingCount>0; }
+function hasPerServing(r){ return hasNutrition(r)&&hasYield(r); }
+function fmt(n,d=0){ return n==null?"—":Number(n).toFixed(d); }
+
+/* ====================================================================
+   STORAGE  — IndexedDB with graceful in-memory fallback
+   ==================================================================== */
+const Store = (() => {
+  const DB="ketoRecipeBuilder", VER=1;
+  let db=null, usingMemory=false;
+  const mem={ recipes:new Map(), shopping:new Map(), kv:new Map() };
+  let memId={ recipes:1, shopping:1 };
+
+  function open(){
+    return new Promise(res=>{
+      let req;
+      try{ req=indexedDB.open(DB,VER); }
+      catch(e){ usingMemory=true; return res(); }
+      req.onupgradeneeded=e=>{
+        const d=e.target.result;
+        if(!d.objectStoreNames.contains("recipes")) d.createObjectStore("recipes",{keyPath:"id",autoIncrement:true});
+        if(!d.objectStoreNames.contains("shopping")) d.createObjectStore("shopping",{keyPath:"id",autoIncrement:true});
+        if(!d.objectStoreNames.contains("kv")) d.createObjectStore("kv",{keyPath:"k"});
+      };
+      req.onsuccess=e=>{ db=e.target.result; res(); };
+      req.onerror=()=>{ usingMemory=true; res(); };
+      // some sandboxes hang silently — fall back after a moment
+      setTimeout(()=>{ if(!db&&!usingMemory){ usingMemory=true; res(); } },1500);
+    });
+  }
+  function tx(name,mode){ return db.transaction(name,mode).objectStore(name); }
+  function p(req){ return new Promise((res,rej)=>{ req.onsuccess=()=>res(req.result); req.onerror=()=>rej(req.error); }); }
+
+  async function all(name){
+    if(usingMemory) return [...mem[name].values()].map(clone);
+    return (await p(tx(name,"readonly").getAll())) || [];
+  }
+  async function get(name,id){
+    if(usingMemory) return clone(mem[name].get(id));
+    return p(tx(name,"readonly").get(id));
+  }
+  async function put(name,obj){
+    if(usingMemory){
+      if(obj.id==null) obj.id=memId[name]++;
+      mem[name].set(obj.id,clone(obj)); return obj.id;
+    }
+    const id=await p(tx(name,"readwrite").put(obj)); obj.id=id; return id;
+  }
+  async function del(name,id){
+    if(usingMemory){ mem[name].delete(id); return; }
+    return p(tx(name,"readwrite").delete(id));
+  }
+  async function clear(name){
+    if(usingMemory){ mem[name].clear(); return; }
+    return p(tx(name,"readwrite").clear());
+  }
+  async function kvGet(k,def){
+    if(usingMemory){ return mem.kv.has(k)?mem.kv.get(k):def; }
+    const row=await p(tx("kv","readonly").get(k)); return row?row.v:def;
+  }
+  async function kvSet(k,v){
+    if(usingMemory){ mem.kv.set(k,v); return; }
+    return p(tx("kv","readwrite").put({k,v}));
+  }
+  function clone(o){ return o==null?o:JSON.parse(JSON.stringify(o)); }
+  const isMemory=()=>usingMemory;
+
+  return { open,all,get,put,del,clear,kvGet,kvSet,isMemory };
+})();
+
+/* ====================================================================
+   NUTRITION (USDA FoodData Central) — uses the USER'S OWN key.
+   Ported scoring/parsing logic from NutritionService.cs.
+   ==================================================================== */
+const Nutrition = (() => {
+  const BASE="https://api.nal.usda.gov/fdc/v1/";
+  const ENERGY=new Set(["208","957"]), CARB=new Set(["205"]), FIBER=new Set(["291"]),
+        FAT=new Set(["204"]), PROTEIN=new Set(["203"]);
+  const ENERGY_N=["energy","calories"], CARB_N=["carbohydrate"], FIBER_N=["fiber","fibre"],
+        FAT_N=["total lipid","fat"], PROTEIN_N=["protein"];
+  const DESCRIPTORS=["fresh","frozen","dried","raw","cooked","organic","large","small","medium",
+    "finely","chopped","diced","sliced","minced","grated","shredded","ground","whole","boneless",
+    "skinless","unsalted","salted","plain","low-fat","full-fat","extra","virgin","cold-pressed"];
+  const PENALTY=["flavored","flavoured","sweetened","with sugar","added sugar","chocolate","vanilla",
+    "strawberry","reduced fat","nonfat","fat free","fat-free","imitation","substitute","infant",
+    "baby","canned","condensed","evaporated","dried","powder","mix","prepared",", light"];
+
+  const key=()=>Settings.usdaKey;
+  const hasKey=()=>!!key();
+
+  function scoreMatch(query,desc){
+    let s=0; const q=query.toLowerCase(), d=desc.toLowerCase();
+    if(d===q) s+=40; else if(d.startsWith(q)) s+=30; else if(d.includes(q)) s+=20;
+    const words=q.split(/\s+/).filter(Boolean); let m=0;
+    words.forEach((w,i)=>{ if(d.includes(w)){ s+=Math.max(10-i*2,3); m++; } });
+    if(m===words.length&&words.length>1) s+=10;
+    if(desc.length>60) s-=5;
+    PENALTY.forEach(p=>{ if(d.includes(p)) s-=15; });
+    return s;
+  }
+  function strip(name){
+    const w=name.split(/\s+/).filter(Boolean).filter(x=>!DESCRIPTORS.includes(x.toLowerCase()));
+    return w.length?w.join(" "):name;
+  }
+  function numFrom(n,...keys){ for(const k of keys){ const v=n[k]; if(typeof v==="number") return v;
+    if(typeof v==="string"&&!isNaN(parseFloat(v))) return parseFloat(v); } return 0; }
+
+  async function search(query){
+    const url=`${BASE}foods/search?api_key=${encodeURIComponent(key())}`;
+    const r=await fetch(url,{method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({query,dataType:["Foundation","SR Legacy","Survey (FNDDS)"],pageSize:10})});
+    if(r.status===429) throw new Error("USDA rate limit reached. Wait a moment and retry.");
+    if(!r.ok) return null;
+    const data=await r.json(); const foods=data.foods||[]; if(!foods.length) return null;
+    const cands=[];
+    for(const f of foods){
+      const desc=f.description||query;
+      const parsed=parseSearchNutrients(f.foodNutrients||[],desc);
+      if(parsed) cands.push({data:parsed,score:scoreMatch(query,desc)});
+    }
+    if(!cands.length) return null;
+    cands.sort((a,b)=>b.score-a.score);
+    return cands[0].data;
+  }
+  function parseSearchNutrients(arr,desc){
+    let cal=0,carbs=0,fiber=0,fat=0,protein=0;
+    let fc=false,fcb=false,ff=false,ffa=false,fp=false;
+    for(const n of arr){
+      if(fc&&fcb&&ff&&ffa&&fp) break;
+      const number=n.nutrientNumber!=null?String(n.nutrientNumber):null;
+      const nm=(n.nutrientName||"").toLowerCase();
+      let val=0; if(typeof n.value==="number") val=n.value; else if(typeof n.amount==="number") val=n.amount;
+      if(!fc&&((number&&ENERGY.has(number))||ENERGY_N.some(x=>nm.includes(x)))){cal=val;fc=true;}
+      if(!fcb&&((number&&CARB.has(number))||CARB_N.some(x=>nm.includes(x)))){carbs=val;fcb=true;}
+      if(!ff&&((number&&FIBER.has(number))||FIBER_N.some(x=>nm.includes(x)))){fiber=val;ff=true;}
+      if(!ffa&&((number&&FAT.has(number))||FAT_N.some(x=>nm.includes(x)))){fat=val;ffa=true;}
+      if(!fp&&((number&&PROTEIN.has(number))||PROTEIN_N.some(x=>nm.includes(x)))){protein=val;fp=true;}
+    }
+    if(!fc&&!fcb) return null;
+    return {cal,carbs,fiber,fat,protein,name:desc};
+  }
+  async function fetchByFdc(id){
+    const url=`${BASE}food/${id}?api_key=${encodeURIComponent(key())}`;
+    const r=await fetch(url); if(!r.ok) return null;
+    const d=await r.json(); const arr=d.foodNutrients||[];
+    let cal=0,carbs=0,fiber=0,fat=0,protein=0;
+    let fc=false,fcb=false,ff=false,ffa=false,fp=false;
+    for(const ne of arr){
+      if(fc&&fcb&&ff&&ffa&&fp) break;
+      const meta=ne.nutrient||{};
+      let number=meta.number!=null?String(meta.number):null;
+      const nm=(meta.name||"").toLowerCase();
+      let val=null; if(typeof ne.amount==="number") val=ne.amount; else if(typeof ne.value==="number") val=ne.value;
+      if(val==null) continue;
+      const byNum=number!=null;
+      if(!fc&&(ENERGY.has(number||"")||(!byNum&&ENERGY_N.some(x=>nm.includes(x))))){cal=val;fc=true;}
+      if(!fcb&&(CARB.has(number||"")||(!byNum&&CARB_N.some(x=>nm.includes(x))))){carbs=val;fcb=true;}
+      if(!ff&&(FIBER.has(number||"")||(!byNum&&FIBER_N.some(x=>nm.includes(x))))){fiber=val;ff=true;}
+      if(!ffa&&(FAT.has(number||"")||(!byNum&&FAT_N.some(x=>nm.includes(x))))){fat=val;ffa=true;}
+      if(!fp&&(PROTEIN.has(number||"")||(!byNum&&PROTEIN_N.some(x=>nm.includes(x))))){protein=val;fp=true;}
+    }
+    if(!fc&&!fcb) return null;
+    return {cal,carbs,fiber,fat,protein,name:d.description||""};
+  }
+  async function lookupWithFallback(name){
+    let r=await search(name); if(r) return r;
+    const s=strip(name);
+    if(s.toLowerCase()!==name.toLowerCase()){ r=await search(s); if(r) return r; }
+    const first=s.split(/\s+/).filter(w=>w.length>2)[0];
+    if(first&&first.toLowerCase()!==s.toLowerCase()) r=await search(first);
+    return r;
+  }
+  async function suggestions(query,max=8){
+    if(!query||!query.trim()||!hasKey()) return [];
+    try{
+      const url=`${BASE}foods/search?api_key=${encodeURIComponent(key())}`;
+      const r=await fetch(url,{method:"POST",headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({query:query.trim(),dataType:["Foundation","SR Legacy","Survey (FNDDS)"],pageSize:max})});
+      if(!r.ok) return [];
+      const d=await r.json(); return (d.foods||[]).map(f=>({fdcId:f.fdcId,description:f.description})).filter(x=>x.fdcId&&x.description);
+    }catch(e){ return []; }
+  }
+
+  // Calculate totals for a recipe's ingredients (NutritionService.CalculateAsync)
+  async function calculate(ingredients){
+    let cal=0,carbs=0,fiber=0,fat=0,protein=0,estimate=false;
+    for(const ing of ingredients){
+      if(ing.seasonToTaste) continue;
+      if(ing.hasManualNutrition && ing.manualServingAmount>0){
+        const ig=toGrams(ing.amount,ing.unit), sg=toGrams(ing.manualServingAmount,ing.manualServingUnit);
+        const scale=sg>0?ig/sg:1;
+        cal+=ing.manualCaloriesPerServing*scale; carbs+=ing.manualCarbsPerServing*scale;
+        fiber+=ing.manualFiberPerServing*scale; fat+=ing.manualFatPerServing*scale;
+        protein+=ing.manualProteinPerServing*scale; continue;
+      }
+      let n=null;
+      if(ing.pinnedFdcId>0) n=await fetchByFdc(ing.pinnedFdcId);
+      else n=await lookupWithFallback(ing.name);
+      if(!n){ estimate=true; continue; }
+      const scale=toGrams(ing.amount,ing.unit)/100;
+      cal+=n.cal*scale; carbs+=n.carbs*scale; fiber+=n.fiber*scale; fat+=n.fat*scale; protein+=n.protein*scale;
+    }
+    return {totalCalories:cal,totalCarbs:carbs,totalFiber:fiber,totalFat:fat,totalProtein:protein,nutritionIsEstimate:estimate};
+  }
+  return { hasKey, suggestions, fetchByFdc, calculate };
+})();
+
+/* ====================================================================
+   BARCODE (Open Food Facts) — no key needed, CORS-friendly.
+   ==================================================================== */
+const Barcode = (() => {
+  const BASE="https://world.openfoodfacts.org";
+  const FIELDS="product_name,brands,nutriments,serving_size";
+  async function lookup(code){
+    const url=`${BASE}/api/v2/product/${encodeURIComponent(code)}?fields=${FIELDS}`;
+    let r; try{ r=await fetch(url); }catch(e){ throw new Error("No connection. Check your network and retry."); }
+    if(r.status===404) return null;
+    if(!r.ok) throw new Error(`Open Food Facts error (${r.status}).`);
+    const d=await r.json();
+    if(d.status===0||!d.product) return null;
+    const p=d.product, n=p.nutriments||{};
+    const num=(...k)=>{ for(const kk of k){ const v=n[kk]; if(typeof v==="number") return v;
+      if(typeof v==="string"&&!isNaN(parseFloat(v))) return parseFloat(v); } return 0; };
+    let cal=num("energy-kcal_100g","energy-kcal");
+    if(cal===0){ const kj=num("energy_100g","energy"); if(kj>0) cal=kj/4.184; }
+    const carbs=num("carbohydrates_100g","carbohydrates"), fiber=num("fiber_100g","fiber");
+    const net=Math.max(0,carbs-fiber);
+    return { barcode:code, name:(p.product_name||p.brands||"Unknown product").trim(), brand:p.brands||"",
+      servingSize:p.serving_size||"", cal, fat:num("fat_100g","fat"), carbs, fiber,
+      protein:num("proteins_100g","proteins"), net, keto:net<=KETO_NET_CARB_LIMIT };
+  }
+  // optional native camera scan (Chrome/Edge/Android). Falls back gracefully.
+  function cameraSupported(){ return "BarcodeDetector" in window && navigator.mediaDevices?.getUserMedia; }
+  return { lookup, cameraSupported };
+})();
+
+/* ====================================================================
+   MEAL PLANNER (local, deterministic — no API).
+   Greedy: fill each day's meal slots from recipes, staying under the
+   daily carb cap and near the calorie target. Mirrors the macro maths
+   of the original AI planner without needing a key.
+   ==================================================================== */
+const Planner = {
+  generate(recipes, days, dailyCarbs, dailyCalories, mealsPerDay){
+    const usable=recipes.filter(r=>hasNutrition(r)&&hasPerServing(r))
+      .map(r=>({ id:r.id, name:r.name,
+        cal:caloriesPerServing(r),
+        net:(netCarbs(r.totalCarbs,r.totalFiber)/(r.servingCount||1)),
+        fat:r.totalFat/(r.servingCount||1), protein:r.totalProtein/(r.servingCount||1) }));
+    if(!usable.length) throw new Error("No recipes with nutrition + a serving count yet. Add those first.");
+    if(usable.length<mealsPerDay) throw new Error(`Need at least ${mealsPerDay} recipes with nutrition to plan ${mealsPerDay} meals/day. You have ${usable.length}.`);
+
+    const labels=mealsPerDay===3?["Breakfast","Lunch","Dinner"]
+      :mealsPerDay===2?["Lunch","Dinner"]
+      :mealsPerDay===4?["Breakfast","Lunch","Dinner","Snack"]
+      :Array.from({length:mealsPerDay},(_,i)=>`Meal ${i+1}`);
+    const calTarget=dailyCalories/mealsPerDay, carbCap=dailyCarbs/mealsPerDay;
+    const plan=[]; let cursor=0;
+    for(let d=0; d<days; d++){
+      const meals=[]; const used=new Set();
+      for(let m=0; m<mealsPerDay; m++){
+        // candidates under the per-meal carb cap (relaxed if needed), prefer unused, then closest to cal target
+        let pool=usable.filter(r=>!used.has(r.id)); if(!pool.length) pool=usable.slice();
+        const fit=pool.filter(r=>r.net<=carbCap*1.4); const search=fit.length?fit:pool;
+        search.sort((a,b)=>Math.abs(a.cal-calTarget)-Math.abs(b.cal-calTarget));
+        // rotate the starting point so days vary
+        const pick=search[(cursor++)%search.length];
+        used.add(pick.id);
+        meals.push({ label:labels[m], recipeId:pick.id, recipeName:pick.name,
+          cal:pick.cal, net:pick.net, fat:pick.fat, protein:pick.protein });
+      }
+      plan.push({ day:d+1, meals });
+    }
+    return plan;
+  }
+};
+
+/* ====================================================================
+   SETTINGS
+   ==================================================================== */
+const Settings = {
+  showNetCarbs:true, usdaKey:"", anthropicKey:"",
+  async load(){
+    this.showNetCarbs=await Store.kvGet("show_net_carbs",true);
+    this.usdaKey=await Store.kvGet("usda_api_key","");
+    this.anthropicKey=await Store.kvGet("anthropic_api_key","");
+  },
+  async set(k,v){ this[k]=v;
+    const map={showNetCarbs:"show_net_carbs",usdaKey:"usda_api_key",anthropicKey:"anthropic_api_key"};
+    await Store.kvSet(map[k],v);
+  }
+};
+
+/* ====================================================================
+   DONUT CHART (canvas) — port of DonutChartDrawable.cs
+   ==================================================================== */
+function drawDonut(canvas, fatG, proteinG, carbG){
+  const dpr=window.devicePixelRatio||1, size=128;
+  canvas.width=size*dpr; canvas.height=size*dpr;
+  const ctx=canvas.getContext("2d"); ctx.scale(dpr,dpr);
+  const cx=size/2, cy=size/2, R=Math.min(cx,cy)-6, hole=R*0.42;
+  const fc=fatG*CAL.fat, pc=proteinG*CAL.protein, cc=carbG*CAL.carbs, total=fc+pc+cc;
+  ctx.clearRect(0,0,size,size);
+  const COL={fat:"#388e3c",protein:"#1976d2",carbs:"#f4511e",empty:"#e0e0e0"};
+  if(total<=0){ ring(COL.empty,0,Math.PI*2); punch(); return; }
+  const fp=fc/total, pp=pc/total, cp=cc/total;
+  let a=-Math.PI/2;
+  const seg=(frac,color)=>{ const e=a+frac*Math.PI*2; ring(color,a,e); a=e; };
+  seg(fp,COL.fat); seg(pp,COL.protein); seg(cp,COL.carbs);
+  // dividers
+  ctx.strokeStyle="#fff"; ctx.lineWidth=2.5;
+  [-Math.PI/2,-Math.PI/2+fp*Math.PI*2,-Math.PI/2+(fp+pp)*Math.PI*2].forEach(ang=>{
+    ctx.beginPath(); ctx.moveTo(cx,cy); ctx.lineTo(cx+R*Math.cos(ang),cy+R*Math.sin(ang)); ctx.stroke();
+  });
+  punch();
+  // centre label = largest macro
+  const big = fp>=pp&&fp>=cp?["Fat",fp]:pp>=fp&&pp>=cp?["Protein",pp]:["Carbs",cp];
+  ctx.fillStyle="#212121"; ctx.textAlign="center"; ctx.font=`600 ${hole*0.62}px var(--mono)`;
+  ctx.fillText(Math.round(big[1]*100)+"%",cx,cy);
+  ctx.fillStyle="#757575"; ctx.font=`500 ${hole*0.34}px var(--body)`;
+  ctx.fillText(big[0],cx,cy+hole*0.5);
+  function ring(color,s,e){ ctx.beginPath(); ctx.moveTo(cx,cy); ctx.arc(cx,cy,R,s,e); ctx.closePath(); ctx.fillStyle=color; ctx.fill(); }
+  function punch(){ ctx.beginPath(); ctx.arc(cx,cy,hole,0,Math.PI*2); ctx.fillStyle="#fff"; ctx.fill();
+    ctx.strokeStyle="rgba(0,0,0,.12)"; ctx.lineWidth=1.5; ctx.stroke(); }
+}
+
+/* ====================================================================
+   UI HELPERS
+   ==================================================================== */
+const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+let toastT;
+function toast(msg){ const t=$("#toast"); t.textContent=msg; t.classList.add("show"); clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove("show"),2200); }
+function openSheet(html){ $("#sheet").innerHTML=`<div class="grab"></div>`+html; $("#sheetBg").classList.add("open"); }
+function closeSheet(){ $("#sheetBg").classList.remove("open"); }
+$("#sheetBg").addEventListener("click",e=>{ if(e.target.id==="sheetBg") closeSheet(); });
+
+let recipesCache=[];
+function carbLabelFor(r){
+  const useNet=Settings.showNetCarbs;
+  const c=useNet?netCarbs(r.totalCarbs,r.totalFiber):r.totalCarbs;
+  return {val:c,label:useNet?"net carbs":"carbs"};
+}
+
+/* ====================================================================
+   NAVIGATION
+   ==================================================================== */
+function show(view){
+  $$(".view").forEach(v=>v.classList.remove("active"));
+  $("#view-"+view).classList.add("active");
+  $$("nav.tabbar button").forEach(b=>b.classList.toggle("active",b.dataset.tab===view));
+  const onMain=["list","plan","shop","settings"].includes(view);
+  $("#fab").style.display = view==="list" ? "grid":"none";
+  window.scrollTo(0,0);
+}
+$$("nav.tabbar button").forEach(b=>b.addEventListener("click",()=>{
+  const t=b.dataset.tab;
+  if(t==="list") renderList();
+  if(t==="plan") renderPlan();
+  if(t==="shop") renderShop();
+  if(t==="settings") renderSettings();
+  show(t);
+}));
+$("#fab").addEventListener("click",()=>openEditor(null));
+
+/* ====================================================================
+   RECIPE LIST
+   ==================================================================== */
+$("#searchInput").addEventListener("input",e=>renderList(e.target.value));
+async function renderList(q=""){
+  recipesCache=(await Store.all("recipes")).sort((a,b)=>(b.updatedAt||0)-(a.updatedAt||0));
+  const ql=q.trim().toLowerCase();
+  const list=ql?recipesCache.filter(r=>r.name.toLowerCase().includes(ql)||(r.description||"").toLowerCase().includes(ql)):recipesCache;
+  const el=$("#recipeList");
+  if(!list.length){
+    el.innerHTML=`<div class="empty"><div class="big">🥑</div><h3>${ql?"No matches":"No recipes yet"}</h3>
+      <p class="muted">${ql?"Try a different search.":"Tap + to build your first keto recipe."}</p></div>`;
+    return;
+  }
+  el.innerHTML=list.map(r=>{
+    const {val,label}=carbLabelFor(r);
+    const til=r.nutritionIsEstimate?"~":"";
+    const isKeto = hasNutrition(r) && (netCarbs(r.totalCarbs,r.totalFiber)/(r.servingCount||1))<=10;
+    let badge="";
+    if(hasNutrition(r)) badge = r.nutritionIsEstimate
+      ? `<span class="tag est">~ estimate</span>`
+      : (isKeto?`<span class="tag keto">keto</span>`:`<span class="tag notketo">high carb</span>`);
+    const macroLine = hasNutrition(r)
+      ? `<div class="macros">
+           <span><b>${til}${fmt(r.totalCalories)}</b> kcal</span>
+           <span><b>${til}${fmt(val,1)}</b>g ${label}</span>
+           <span><b>${fmt(r.totalFat,1)}</b>g fat</span>
+         </div>`
+      : `<div class="macros"><span class="muted">Nutrition not calculated</span></div>`;
+    return `<div class="card recipe-card" onclick="openDetail(${r.id})">
+      <div style="display:flex;align-items:flex-start;gap:8px">
+        <div style="flex:1;min-width:0">
+          <div class="name">${esc(r.name)}</div>
+          <div class="meta">${r.ingredients.length} ingredient${r.ingredients.length===1?"":"s"}${hasYield(r)?` · makes ${r.servingCount}`:""}</div>
+        </div>${badge}
+      </div>${macroLine}</div>`;
+  }).join("");
+}
+
+/* ====================================================================
+   RECIPE DETAIL
+   ==================================================================== */
+window.openDetail=async function(id){
+  const r=await Store.get("recipes",id); if(!r) return;
+  const {val,label}=carbLabelFor(r);
+  const til=r.nutritionIsEstimate?"~":"";
+  const perCal=caloriesPerServing(r);
+  const v=$("#view-detail");
+  v.innerHTML=`
+    <button class="backbtn" onclick="goList()">‹ Recipes</button>
+    <div class="card detail-hero">
+      <h2>${esc(r.name)}</h2>
+      ${hasYield(r)?`<div class="muted">Makes ${r.servingCount} serving${r.servingCount===1?"":"s"}${r.servingDescription?" · "+esc(r.servingDescription):""}</div>`:""}
+      ${r.description?`<div class="desc">${esc(r.description)}</div>`:""}
+      ${hasNutrition(r)?`
+        <div class="donut-wrap">
+          <canvas class="donut" id="detailDonut"></canvas>
+          <div class="macro-legend">
+            <div class="macro-row"><span class="dot" style="background:var(--fat)"></span>Fat<span class="g">${fmt(r.totalFat,1)}g</span></div>
+            <div class="macro-row"><span class="dot" style="background:var(--protein)"></span>Protein<span class="g">${fmt(r.totalProtein,1)}g</span></div>
+            <div class="macro-row"><span class="dot" style="background:var(--carbs)"></span>Carbs<span class="g">${fmt(r.totalCarbs,1)}g</span></div>
+          </div>
+        </div>
+        <div class="stat-grid">
+          <div class="stat"><div class="k">Calories</div><div class="v">${til}${fmt(r.totalCalories)}<small> kcal</small></div></div>
+          <div class="stat"><div class="k">${label}</div><div class="v">${til}${fmt(val,1)}<small> g</small></div></div>
+          ${hasPerServing(r)?`<div class="stat"><div class="k">Per serving</div><div class="v">${fmt(perCal)}<small> kcal</small></div></div>`:""}
+          ${hasPerServing(r)?`<div class="stat"><div class="k">Net / serving</div><div class="v">${fmt(netCarbs(r.totalCarbs,r.totalFiber)/r.servingCount,1)}<small> g</small></div></div>`:""}
+        </div>
+        ${r.nutritionIsEstimate?`<div class="note">Some ingredients couldn't be matched, so these totals are an estimate (~).</div>`:""}
+      `:`<div class="note">No nutrition yet. Tap “Calculate nutrition” below.</div>`}
+      <div class="inline" style="margin-top:14px">
+        <button class="btn primary" onclick="calcNutrition(${r.id})" id="calcBtn">Calculate nutrition</button>
+        <button class="btn" onclick="openEditor(${r.id})">Edit</button>
+      </div>
+    </div>
+
+    <div class="section-h">Ingredients</div>
+    <div class="card" style="padding:4px 16px">
+      <ul class="clean">${r.ingredients.length?r.ingredients.map(i=>{
+        const amt=i.seasonToTaste?"":`${esc(amountDisplay(i))} ${esc(i.unit)}`.trim();
+        return `<li class="ing-line"><span class="amt">${amt||"—"}</span><span>${esc(i.name)}${i.seasonToTaste?' <span class="muted">— to taste</span>':""}</span></li>`;
+      }).join(""):'<li class="ing-line"><span class="muted">No ingredients</span></li>'}</ul>
+    </div>
+
+    ${r.steps.length?`<div class="section-h">Method</div>
+      <div class="card" style="padding:4px 16px"><ul class="clean">
+        ${r.steps.sort((a,b)=>a.stepNumber-b.stepNumber).map(s=>
+          `<li class="step-line"><span class="n">${s.stepNumber}</span><span>${esc(s.text)}</span></li>`).join("")}
+      </ul></div>`:""}
+
+    <div class="inline" style="margin-top:18px">
+      <button class="btn" onclick="addRecipeToShopping(${r.id})">Add to shopping list</button>
+      <button class="btn danger" onclick="deleteRecipe(${r.id})">Delete</button>
+    </div>`;
+  show("detail");
+  if(hasNutrition(r)) drawDonut($("#detailDonut"),r.totalFat||0,r.totalProtein||0,r.totalCarbs||0);
+};
+window.goList=()=>{ renderList($("#searchInput").value); show("list"); };
+function amountDisplay(i){ if(i.amountLabel) return i.amountLabel;
+  const map={0.25:"¼",0.333:"⅓",0.5:"½",0.667:"⅔",0.75:"¾",1.25:"1¼",1.5:"1½",1.75:"1¾",2.5:"2½",3.5:"3½",4.5:"4½"};
+  if(map[i.amount]) return map[i.amount];
+  return i.amount%1===0?String(i.amount|0):String(i.amount); }
+
+window.deleteRecipe=async function(id){
+  if(!confirm("Delete this recipe? This can't be undone.")) return;
+  await Store.del("recipes",id); toast("Recipe deleted"); goList();
+};
+
+window.calcNutrition=async function(id){
+  if(!Nutrition.hasKey()){
+    openSheet(`<h3>USDA key needed</h3>
+      <p class="muted">Automatic nutrition uses the free USDA FoodData Central API. Add your own key in Settings (takes ~30 seconds), or enter nutrition manually per ingredient when editing.</p>
+      <button class="btn primary full" style="margin-top:14px" onclick="closeSheet();renderSettings();show('settings')">Open Settings</button>`);
+    return;
+  }
+  const btn=$("#calcBtn"); if(btn){ btn.disabled=true; btn.innerHTML=`<span class="spinner"></span> Calculating…`; }
+  try{
+    const r=await Store.get("recipes",id);
+    const res=await Nutrition.calculate(r.ingredients);
+    Object.assign(r,res); r.updatedAt=Date.now();
+    await Store.put("recipes",r);
+    toast(res.nutritionIsEstimate?"Calculated (estimate)":"Nutrition calculated");
+    openDetail(id);
+  }catch(e){ toast(e.message||"Couldn't calculate"); if(btn){btn.disabled=false;btn.textContent="Calculate nutrition";} }
+};
+
+/* ====================================================================
+   ADD / EDIT RECIPE
+   ==================================================================== */
+let draft=null;
+window.openEditor=async function(id){
+  if(id){ draft=await Store.get("recipes",id); }
+  else draft={ id:null, name:"", description:"", servingCount:0, servingDescription:"",
+    ingredients:[], steps:[], totalCalories:null,totalCarbs:null,totalFiber:null,totalFat:null,totalProtein:null,
+    nutritionIsEstimate:false, createdAt:Date.now(), updatedAt:Date.now() };
+  renderEditor(); show("edit");
+};
+function renderEditor(){
+  const v=$("#view-edit");
+  v.innerHTML=`
+    <button class="backbtn" onclick="goList()">‹ Cancel</button>
+    <h2 class="display" style="font-size:22px;margin-bottom:4px">${draft.id?"Edit recipe":"New recipe"}</h2>
+
+    <label class="fld">Recipe name</label>
+    <input id="eName" value="${esc(draft.name)}" placeholder="e.g. Avocado egg salad">
+    <label class="fld">Description (optional)</label>
+    <textarea id="eDesc" placeholder="A short note…">${esc(draft.description)}</textarea>
+    <div class="inline">
+      <div><label class="fld">Servings (0 = not set)</label>
+        <input id="eServings" type="number" min="0" value="${draft.servingCount||0}"></div>
+      <div><label class="fld">Yield note</label>
+        <input id="eYield" value="${esc(draft.servingDescription)}" placeholder="e.g. 2 bowls"></div>
+    </div>
+
+    <div class="section-h" style="margin-top:22px">Ingredients</div>
+    <div id="ingList">${renderDraftIngredients()}</div>
+    <button class="btn full" style="margin-top:6px" onclick="openIngredientSheet()">+ Add ingredient</button>
+
+    <div class="section-h" style="margin-top:22px">Method</div>
+    <div id="stepList">${renderDraftSteps()}</div>
+    <div class="inline" style="margin-top:6px">
+      <input id="eStep" placeholder="Add a step…" onkeydown="if(event.key==='Enter')addStep()">
+      <button class="btn" style="flex:0 0 auto" onclick="addStep()">Add</button>
+    </div>
+
+    <div class="divider"></div>
+    <button class="btn primary full" onclick="saveDraft()">${draft.id?"Save changes":"Create recipe"}</button>`;
+}
+function renderDraftIngredients(){
+  if(!draft.ingredients.length) return `<p class="muted" style="padding:4px 0">No ingredients yet.</p>`;
+  return draft.ingredients.map((i,idx)=>{
+    const txt=i.seasonToTaste?`${esc(i.name)} — to taste`:`${esc(amountDisplay(i))} ${esc(i.unit)} ${esc(i.name)}`.trim();
+    const man=i.hasManualNutrition?`<span class="tag est" style="margin-left:6px">manual</span>`:(i.pinnedFdcId>0?`<span class="tag keto" style="margin-left:6px">USDA ✓</span>`:"");
+    return `<div class="edit-item"><div class="body">${txt}${man}</div>
+      <button class="x" onclick="removeIngredient(${idx})">×</button></div>`;
+  }).join("");
+}
+function renderDraftSteps(){
+  if(!draft.steps.length) return `<p class="muted" style="padding:4px 0">No steps yet.</p>`;
+  return draft.steps.map((s,idx)=>`<div class="edit-item"><div class="body"><b class="num">${idx+1}.</b> ${esc(s.text)}</div>
+    <button class="x" onclick="removeStep(${idx})">×</button></div>`).join("");
+}
+window.removeIngredient=i=>{ draft.ingredients.splice(i,1); $("#ingList").innerHTML=renderDraftIngredients(); };
+window.removeStep=i=>{ draft.steps.forEach(s=>{}); draft.steps.splice(i,1);
+  draft.steps.forEach((s,k)=>s.stepNumber=k+1); $("#stepList").innerHTML=renderDraftSteps(); };
+window.addStep=()=>{ const inp=$("#eStep"); const t=inp.value.trim(); if(!t) return;
+  draft.steps.push({stepNumber:draft.steps.length+1,text:t}); inp.value=""; $("#stepList").innerHTML=renderDraftSteps(); inp.focus(); };
+
+window.saveDraft=async function(){
+  draft.name=$("#eName").value.trim();
+  if(!draft.name){ toast("Give the recipe a name"); return; }
+  draft.description=$("#eDesc").value.trim();
+  draft.servingCount=parseInt($("#eServings").value)||0;
+  draft.servingDescription=$("#eYield").value.trim();
+  draft.updatedAt=Date.now();
+  // editing ingredients invalidates cached nutrition? keep existing unless none.
+  const id=await Store.put("recipes",draft);
+  toast(draft.id?"Saved":"Recipe created"); draft.id=id;
+  openDetail(id);
+};
+
+/* ---------- Ingredient entry sheet ---------- */
+let ingDraft=null, suggestTimer=null;
+window.openIngredientSheet=function(){
+  ingDraft={ amount:1, amountLabel:"1", unit:"cup", name:"", seasonToTaste:false, pinnedFdcId:0,
+    hasManualNutrition:false, manualCaloriesPerServing:0,manualCarbsPerServing:0,manualFiberPerServing:0,
+    manualFatPerServing:0,manualProteinPerServing:0,manualServingAmount:0,manualServingUnit:"" };
+  openSheet(ingredientSheetHTML());
+  wireIngredientSheet();
+};
+function ingredientSheetHTML(){
+  return `<h3>Add ingredient</h3>
+    <label class="fld">Name</label>
+    <input id="iName" placeholder="e.g. cheddar cheese" value="${esc(ingDraft.name)}" autocomplete="off">
+    <div id="iSuggestWrap"></div>
+    ${Nutrition.hasKey()?`<button class="btn ghost sm" style="margin-top:4px;padding-left:0" onclick="doSuggest()">🔎 Find in USDA database</button>`:""}
+
+    <div id="amountBlock" style="${ingDraft.seasonToTaste?"display:none":""}">
+      <label class="fld">Amount</label>
+      <div class="pill-row" id="fracRow">${FRACTIONS.map(f=>`<button onclick="pickFrac('${f}')" class="${ingDraft.amountLabel===f?"on":""}">${f}</button>`).join("")}</div>
+      <label class="fld">Unit</label>
+      <select id="iUnit">${UNIT_OPTIONS.map(u=>`<option ${u===ingDraft.unit?"selected":""}>${u}</option>`).join("")}</select>
+    </div>
+
+    <label class="checkrow" style="margin-top:14px;border:0;padding:8px 0">
+      <input type="checkbox" id="iSeason" ${ingDraft.seasonToTaste?"checked":""}>
+      <span class="lbl">Season to taste (no amount)</span>
+    </label>
+
+    <details style="margin-top:6px">
+      <summary class="muted" style="cursor:pointer;font-weight:600">Enter nutrition manually (optional)</summary>
+      <div class="note">Per serving of this food; it'll be scaled to the amount above. Use this when you don't have a USDA key or the food isn't found.</div>
+      <div class="inline">
+        <div><label class="fld">Serving amount</label><input id="mAmt" type="number" step="any" value="${ingDraft.manualServingAmount||""}" placeholder="1"></div>
+        <div><label class="fld">Serving unit</label>
+          <select id="mUnit"><option value="">—</option>${UNIT_OPTIONS.map(u=>`<option ${u===ingDraft.manualServingUnit?"selected":""}>${u}</option>`).join("")}</select></div>
+      </div>
+      <div class="inline"><div><label class="fld">Calories</label><input id="mCal" type="number" step="any" value="${ingDraft.manualCaloriesPerServing||""}"></div>
+        <div><label class="fld">Carbs (g)</label><input id="mCarb" type="number" step="any" value="${ingDraft.manualCarbsPerServing||""}"></div></div>
+      <div class="inline"><div><label class="fld">Fiber (g)</label><input id="mFib" type="number" step="any" value="${ingDraft.manualFiberPerServing||""}"></div>
+        <div><label class="fld">Fat (g)</label><input id="mFat" type="number" step="any" value="${ingDraft.manualFatPerServing||""}"></div></div>
+      <label class="fld">Protein (g)</label><input id="mPro" type="number" step="any" value="${ingDraft.manualProteinPerServing||""}">
+    </details>
+
+    <div class="inline" style="margin-top:16px">
+      <button class="btn" onclick="closeSheet()">Cancel</button>
+      <button class="btn primary" onclick="commitIngredient()">Add ingredient</button>
+    </div>
+    <button class="btn ghost full sm" style="margin-top:8px" onclick="openBarcodeSheet()">📷 Scan / enter a barcode instead</button>`;
+}
+function wireIngredientSheet(){
+  $("#iName").addEventListener("input",e=>{ ingDraft.name=e.target.value; ingDraft.pinnedFdcId=0; });
+  $("#iSeason").addEventListener("change",e=>{ ingDraft.seasonToTaste=e.target.checked;
+    $("#amountBlock").style.display=e.target.checked?"none":""; });
+}
+window.pickFrac=f=>{ ingDraft.amountLabel=f; ingDraft.amount=parseAmount(f);
+  $$("#fracRow button").forEach(b=>b.classList.toggle("on",b.textContent===f)); };
+window.doSuggest=async function(){
+  const q=$("#iName").value.trim(); if(!q) return;
+  const wrap=$("#iSuggestWrap"); wrap.innerHTML=`<div style="padding:8px"><span class="spinner"></span></div>`;
+  const s=await Nutrition.suggestions(q);
+  if(!s.length){ wrap.innerHTML=`<p class="muted" style="padding:6px 0">No matches. Try a simpler name or enter nutrition manually.</p>`; return; }
+  wrap.innerHTML=`<div class="suggest">${s.map(x=>
+    `<button onclick="pickSuggest(${x.fdcId},'${esc(x.description).replace(/'/g,"\\'")}')">${esc(x.description)}</button>`).join("")}</div>`;
+};
+window.pickSuggest=(fdcId,desc)=>{ ingDraft.pinnedFdcId=fdcId; ingDraft.name=desc; $("#iName").value=desc;
+  $("#iSuggestWrap").innerHTML=`<p class="tag keto" style="display:inline-block;margin-top:6px">USDA match pinned ✓</p>`; };
+window.commitIngredient=function(){
+  ingDraft.name=$("#iName").value.trim();
+  if(!ingDraft.name){ toast("Ingredient needs a name"); return; }
+  if(!ingDraft.seasonToTaste){ ingDraft.unit=$("#iUnit").value; }
+  // manual nutrition
+  const mAmt=parseFloat($("#mAmt")?.value); 
+  if(!isNaN(mAmt)&&mAmt>0){
+    ingDraft.hasManualNutrition=true; ingDraft.manualServingAmount=mAmt;
+    ingDraft.manualServingUnit=$("#mUnit").value;
+    ingDraft.manualCaloriesPerServing=parseFloat($("#mCal").value)||0;
+    ingDraft.manualCarbsPerServing=parseFloat($("#mCarb").value)||0;
+    ingDraft.manualFiberPerServing=parseFloat($("#mFib").value)||0;
+    ingDraft.manualFatPerServing=parseFloat($("#mFat").value)||0;
+    ingDraft.manualProteinPerServing=parseFloat($("#mPro").value)||0;
+  }
+  draft.ingredients.push({...ingDraft});
+  $("#ingList").innerHTML=renderDraftIngredients();
+  closeSheet(); toast("Ingredient added");
+};
+
+/* ---------- Barcode sheet ---------- */
+window.openBarcodeSheet=function(){
+  openSheet(`<h3>Barcode lookup</h3>
+    <p class="muted">Looks up the product in Open Food Facts (free, no key) and fills in manual nutrition per 100 g.</p>
+    ${Barcode.cameraSupported()?`<button class="btn full" style="margin-top:10px" onclick="startScan()">📷 Scan with camera</button>
+      <video id="scanVid" playsinline style="display:none;width:100%;border-radius:12px;margin-top:10px"></video>`:
+      `<div class="note">Camera scanning isn't supported in this browser — type the barcode digits below.</div>`}
+    <label class="fld">Or enter the barcode number</label>
+    <div class="inline"><input id="bCode" inputmode="numeric" placeholder="e.g. 3017620422003">
+      <button class="btn primary" style="flex:0 0 auto" onclick="lookupBarcode()">Look up</button></div>
+    <div id="bResult"></div>`);
+};
+let scanStream=null, scanRAF=null;
+window.startScan=async function(){
+  try{
+    const det=new window.BarcodeDetector();
+    const vid=$("#scanVid"); vid.style.display="block";
+    scanStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:"environment"}});
+    vid.srcObject=scanStream; await vid.play();
+    const tick=async()=>{ try{ const codes=await det.detect(vid);
+      if(codes.length){ stopScan(); $("#bCode").value=codes[0].rawValue; lookupBarcode(); return; } }catch(e){}
+      scanRAF=requestAnimationFrame(tick); };
+    tick();
+  }catch(e){ toast("Couldn't start camera"); }
+};
+function stopScan(){ if(scanRAF) cancelAnimationFrame(scanRAF);
+  if(scanStream){ scanStream.getTracks().forEach(t=>t.stop()); scanStream=null; }
+  const v=$("#scanVid"); if(v){ v.style.display="none"; } }
+window.lookupBarcode=async function(){
+  const code=$("#bCode").value.trim(); if(!code) return;
+  const out=$("#bResult"); out.innerHTML=`<div style="padding:10px"><span class="spinner"></span> Looking up…</div>`;
+  try{
+    const r=await Barcode.lookup(code);
+    if(!r){ out.innerHTML=`<div class="note">No product found for that barcode.</div>`; return; }
+    out.innerHTML=`<div class="card" style="padding:14px;margin-top:12px">
+      <div style="display:flex;align-items:center;gap:8px">
+        <b style="flex:1">${esc(r.name)}</b>
+        <span class="tag ${r.keto?"keto":"notketo"}">${r.keto?"keto ✓":"not keto"}</span></div>
+      ${r.brand?`<div class="muted" style="font-size:12px">${esc(r.brand)}</div>`:""}
+      <div class="macros" style="margin-top:10px;display:flex;gap:14px;font-size:12.5px">
+        <span><b class="num">${fmt(r.cal)}</b> kcal</span><span><b class="num">${fmt(r.net,1)}</b>g net</span>
+        <span><b class="num">${fmt(r.fat,1)}</b>g fat</span><span><b class="num">${fmt(r.protein,1)}</b>g pro</span></div>
+      <div class="muted" style="font-size:12px;margin-top:4px">per 100 g</div>
+      <button class="btn primary full" style="margin-top:12px" onclick='useBarcode(${JSON.stringify(r).replace(/'/g,"&#39;")})'>Use as this ingredient</button>
+    </div>`;
+  }catch(e){ out.innerHTML=`<div class="note">${esc(e.message)}</div>`; }
+};
+window.useBarcode=function(r){
+  if(!ingDraft) ingDraft={amount:100,amountLabel:"100",unit:"g",seasonToTaste:false,pinnedFdcId:0};
+  ingDraft.name=r.name; ingDraft.hasManualNutrition=true;
+  ingDraft.manualServingAmount=100; ingDraft.manualServingUnit="g";
+  ingDraft.manualCaloriesPerServing=r.cal; ingDraft.manualCarbsPerServing=r.carbs;
+  ingDraft.manualFiberPerServing=r.fiber; ingDraft.manualFatPerServing=r.fat;
+  ingDraft.manualProteinPerServing=r.protein; ingDraft.pinnedFdcId=0;
+  stopScan(); openSheet(ingredientSheetHTML()); wireIngredientSheet();
+  toast("Barcode nutrition loaded — set the amount");
+};
+
+/* ====================================================================
+   MEAL PLANNER
+   ==================================================================== */
+function renderPlan(){
+  const v=$("#view-plan");
+  v.innerHTML=`<h2 class="display" style="font-size:22px;margin-bottom:4px">Meal planner</h2>
+    <p class="muted">Builds a plan from your recipes that have nutrition + a serving count. Runs entirely on your device — no API needed.</p>
+    <div class="inline" style="margin-top:14px">
+      <div><label class="fld">Days</label><input id="pDays" type="number" min="1" max="14" value="3"></div>
+      <div><label class="fld">Meals / day</label>
+        <select id="pMeals"><option>2</option><option selected>3</option><option>4</option></select></div>
+    </div>
+    <div class="inline">
+      <div><label class="fld">Daily carb cap (g)</label><input id="pCarbs" type="number" value="20"></div>
+      <div><label class="fld">Daily calories</label><input id="pCals" type="number" value="1800"></div>
+    </div>
+    <button class="btn primary full" style="margin-top:16px" onclick="generatePlan()">Generate plan</button>
+    <div id="planOut" style="margin-top:18px"></div>`;
+}
+window.generatePlan=async function(){
+  const out=$("#planOut");
+  try{
+    const recipes=await Store.all("recipes");
+    const plan=Planner.generate(recipes,
+      parseInt($("#pDays").value)||3, parseFloat($("#pCarbs").value)||20,
+      parseFloat($("#pCals").value)||1800, parseInt($("#pMeals").value)||3);
+    out.innerHTML=plan.map(d=>{
+      const tc=d.meals.reduce((s,m)=>s+m.cal,0), tn=d.meals.reduce((s,m)=>s+m.net,0);
+      return `<div class="card day-card">
+        <div class="dh"><h3>Day ${d.day}</h3><span class="tot">${fmt(tc)} kcal · ${fmt(tn,1)}g net</span></div>
+        ${d.meals.map(m=>`<div class="meal"><div class="ml">${m.label}</div>
+          <div onclick="openDetail(${m.recipeId})" style="cursor:pointer;color:var(--brand);font-weight:600">${esc(m.recipeName)}</div>
+          <div class="mm">${fmt(m.cal)} kcal · ${fmt(m.net,1)}g net · ${fmt(m.fat,1)}g fat · ${fmt(m.protein,1)}g pro</div></div>`).join("")}
+      </div>`;
+    }).join("");
+  }catch(e){ out.innerHTML=`<div class="note">${esc(e.message)}</div>`; }
+};
+
+/* ====================================================================
+   SHOPPING LIST
+   ==================================================================== */
+window.addRecipeToShopping=async function(id){
+  const r=await Store.get("recipes",id);
+  const items=r.ingredients.filter(i=>!i.seasonToTaste);
+  openSheet(`<h3>Add to shopping list</h3><p class="muted">${esc(r.name)}</p>
+    <ul class="clean" style="margin-top:8px">${items.map((i,idx)=>`
+      <li class="checkrow"><input type="checkbox" id="sc${idx}" checked>
+      <span class="lbl">${esc(amountDisplay(i))} ${esc(i.unit)} ${esc(i.name)}</span></li>`).join("")}</ul>
+    <button class="btn primary full" style="margin-top:12px" onclick='commitShopping(${id})'>Add selected</button>`);
+  window.__shopItems=items.map((i)=>({name:i.name,amount:`${amountDisplay(i)} ${i.unit}`.trim()}));
+  window.__shopSrc=r.name;
+};
+window.commitShopping=async function(){
+  let n=0;
+  for(let idx=0; idx<window.__shopItems.length; idx++){
+    if($("#sc"+idx)?.checked){
+      const it=window.__shopItems[idx];
+      await Store.put("shopping",{id:null,name:it.name,amount:it.amount,isChecked:false,
+        sourceRecipeName:window.__shopSrc,sortOrder:Date.now()+idx,createdAt:Date.now()});
+      n++;
+    }
+  }
+  closeSheet(); toast(`${n} item${n===1?"":"s"} added`);
+};
+async function renderShop(){
+  const items=(await Store.all("shopping")).sort((a,b)=>(a.sortOrder||0)-(b.sortOrder||0));
+  const v=$("#view-shop");
+  v.innerHTML=`<h2 class="display" style="font-size:22px;margin-bottom:10px">Shopping list</h2>
+    <div class="inline" style="margin-bottom:14px">
+      <input id="shopAdd" placeholder="Add an item…" onkeydown="if(event.key==='Enter')addShopItem()">
+      <button class="btn" style="flex:0 0 auto" onclick="addShopItem()">Add</button>
+    </div>
+    ${items.length?`<div class="card" style="padding:6px 16px"><ul class="clean">
+      ${items.map(i=>`<li class="checkrow ${i.isChecked?"done":""}">
+        <input type="checkbox" ${i.isChecked?"checked":""} onchange="toggleShop(${i.id},this.checked)">
+        <span class="lbl">${esc(i.amount?i.amount+" ":"")}${esc(i.name)}<div class="src">${esc(i.sourceRecipeName||"Custom")}</div></span>
+        <button class="x" onclick="delShop(${i.id})">×</button></li>`).join("")}
+    </ul></div>
+    <div class="inline" style="margin-top:14px">
+      <button class="btn" onclick="clearChecked()">Clear checked</button>
+      <button class="btn danger" onclick="clearAllShop()">Clear all</button></div>`
+    :`<div class="empty"><div class="big">🛒</div><h3>List is empty</h3><p class="muted">Add items above or from any recipe.</p></div>`}`;
+}
+window.addShopItem=async function(){ const inp=$("#shopAdd"); const t=inp.value.trim(); if(!t) return;
+  await Store.put("shopping",{id:null,name:t,amount:"",isChecked:false,sourceRecipeName:"",sortOrder:Date.now(),createdAt:Date.now()});
+  inp.value=""; renderShop(); };
+window.toggleShop=async function(id,checked){ const it=await Store.get("shopping",id); it.isChecked=checked; await Store.put("shopping",it);
+  const row=event.target.closest(".checkrow"); row.classList.toggle("done",checked); };
+window.delShop=async function(id){ await Store.del("shopping",id); renderShop(); };
+window.clearChecked=async function(){ const items=await Store.all("shopping");
+  for(const i of items) if(i.isChecked) await Store.del("shopping",i.id); renderShop(); toast("Cleared checked"); };
+window.clearAllShop=async function(){ if(!confirm("Clear the whole list?")) return;
+  await Store.clear("shopping"); renderShop(); };
+
+/* ====================================================================
+   SETTINGS
+   ==================================================================== */
+function renderSettings(){
+  const v=$("#view-settings");
+  v.innerHTML=`<h2 class="display" style="font-size:22px;margin-bottom:10px">Settings</h2>
+
+    <div class="card" style="padding:6px 16px">
+      <div class="kv"><div><div class="lbl" style="color:var(--ink);font-weight:600">Show net carbs</div>
+        <div class="muted" style="font-size:12.5px">Net = total carbs − fiber</div></div>
+        <label class="toggle"><input type="checkbox" id="setNet" ${Settings.showNetCarbs?"checked":""}><span class="tk"></span></label></div>
+    </div>
+
+    <div class="section-h" style="margin-top:20px">Auto nutrition (optional)</div>
+    <div class="card" style="padding:16px">
+      <p class="muted" style="font-size:13.5px;margin:0 0 10px">Automatic ingredient nutrition uses the free USDA FoodData Central API. Get a key in ~30 seconds at <a href="https://fdc.nal.usda.gov/api-key-signup.html" target="_blank" rel="noopener">fdc.nal.usda.gov</a>. Stored only on this device.</p>
+      <input id="setUsda" type="password" placeholder="USDA API key" value="${esc(Settings.usdaKey)}">
+      <div class="inline" style="margin-top:10px">
+        <button class="btn primary" onclick="saveUsda()">Save key</button>
+        ${Settings.usdaKey?`<button class="btn danger" onclick="clearUsda()">Remove</button>`:""}
+      </div>
+      <div class="muted" style="font-size:12px;margin-top:8px">${Settings.usdaKey?"✓ Key saved":"No key — use manual nutrition or barcode lookup instead."}</div>
+    </div>
+
+    <div class="section-h" style="margin-top:20px">Your data</div>
+    <div class="card" style="padding:16px">
+      <p class="muted" style="font-size:13.5px;margin:0 0 10px">Recipes are saved ${Store.isMemory()?"<b>in memory only (this preview won't persist — download &amp; host the file for real storage)</b>":"in this browser"}. Export a backup or move it to another device.</p>
+      <div class="inline">
+        <button class="btn" onclick="exportData()">⬇ Export backup</button>
+        <button class="btn" onclick="document.getElementById('importFile').click()">⬆ Import backup</button>
+      </div>
+      <input type="file" id="importFile" accept="application/json" style="display:none" onchange="importData(event)">
+    </div>
+
+    <div class="divider"></div>
+    <p class="muted" style="font-size:12px;text-align:center">Keto Recipe Builder · web edition · runs offline once loaded</p>`;
+  $("#setNet").addEventListener("change",async e=>{ await Settings.set("showNetCarbs",e.target.checked); toast("Updated"); });
+}
+window.saveUsda=async function(){ await Settings.set("usdaKey",$("#setUsda").value.trim()); toast("USDA key saved"); renderSettings(); };
+window.clearUsda=async function(){ await Settings.set("usdaKey",""); toast("Key removed"); renderSettings(); };
+
+window.exportData=async function(){
+  const data={ version:1, exportedAt:new Date().toISOString(),
+    recipes:await Store.all("recipes"), shopping:await Store.all("shopping"),
+    settings:{ show_net_carbs:Settings.showNetCarbs } };
+  const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});
+  const a=document.createElement("a"); a.href=URL.createObjectURL(blob);
+  a.download=`keto-backup-${new Date().toISOString().slice(0,10)}.json`; a.click();
+  URL.revokeObjectURL(a.href); toast("Backup downloaded");
+};
+window.importData=async function(ev){
+  const file=ev.target.files[0]; if(!file) return;
+  try{
+    const data=JSON.parse(await file.text());
+    if(!Array.isArray(data.recipes)) throw new Error("Not a valid backup file");
+    if(!confirm(`Import ${data.recipes.length} recipe(s)? They'll be added to what's already here.`)) return;
+    for(const r of data.recipes){ delete r.id; await Store.put("recipes",r); }
+    for(const s of (data.shopping||[])){ delete s.id; await Store.put("shopping",s); }
+    if(data.settings&&typeof data.settings.show_net_carbs==="boolean") await Settings.set("showNetCarbs",data.settings.show_net_carbs);
+    toast("Backup imported"); renderList(); renderSettings();
+  }catch(e){ toast("Import failed: "+e.message); }
+  ev.target.value="";
+};
+
+/* ====================================================================
+   BOOT
+   ==================================================================== */
+(async function init(){
+  await Store.open();
+  await Settings.load();
+  $("#storageBadge").textContent = Store.isMemory() ? "preview" : "saved locally";
+  // seed a sample recipe on first run so the app isn't empty
+  const existing=await Store.all("recipes");
+  if(!existing.length && !(await Store.kvGet("seeded",false))){
+    await Store.kvSet("seeded",true);
+    await Store.put("recipes",{ id:null, name:"Avocado & Bacon Egg Cups", description:"A grab-and-go keto breakfast.",
+      servingCount:2, servingDescription:"2 cups", createdAt:Date.now(), updatedAt:Date.now(),
+      nutritionIsEstimate:false, totalCalories:540, totalCarbs:8, totalFiber:6, totalFat:46, totalProtein:24,
+      ingredients:[
+        {amount:1,amountLabel:"1",unit:"whole",name:"avocado",seasonToTaste:false,pinnedFdcId:0,hasManualNutrition:false},
+        {amount:2,amountLabel:"2",unit:"whole",name:"large eggs",seasonToTaste:false,pinnedFdcId:0,hasManualNutrition:false},
+        {amount:2,amountLabel:"2",unit:"slice",name:"bacon",seasonToTaste:false,pinnedFdcId:0,hasManualNutrition:false},
+        {amount:0,amountLabel:"",unit:"",name:"salt & pepper",seasonToTaste:true,pinnedFdcId:0,hasManualNutrition:false}],
+      steps:[
+        {stepNumber:1,text:"Halve the avocado and scoop out a little flesh to widen the well."},
+        {stepNumber:2,text:"Crack an egg into each half, top with chopped bacon."},
+        {stepNumber:3,text:"Bake at 425°F for 12–15 min until the white is set. Season to taste."}]});
+  }
+  renderList();
+})();
+</script>
+</body>
+</html>
