@@ -287,7 +287,7 @@ const UNIT_OPTIONS = ["tsp","tbsp","fl oz","cup","pt","qt","ml","l","oz","lb","g
   "whole","slice","pinch","dash","clove","can","pkg","serving"];
 
 // amount label -> double (AmountParser + fraction picker)
-const FRACTIONS = ["¼","⅓","½","⅔","¾","1","1¼","1⅓","1½", "1⅔","1¾","2","2⅓","2½", "2⅔", "3","3½","4","5","6","8","10","12"];
+const FRACTIONS = ["¼","⅓","½","⅔","¾","1","1¼","1½","1¾","2","2½","3","3½","4","5","6","8","10","12"];
 const FRACTION_VAL = {"¼":.25,"⅓":.333,"½":.5,"⅔":.667,"¾":.75,"1¼":1.25,"1½":1.5,"1¾":1.75,
   "2½":2.5,"3½":3.5,"4½":4.5,"1 1/2":1.5,"2 1/2":2.5};
 function parseAmount(label){
@@ -348,6 +348,7 @@ const Store = (() => {
       if(obj.id==null) obj.id=memId[name]++;
       mem[name].set(obj.id,clone(obj)); return obj.id;
     }
+    if(obj.id==null) delete obj.id;   // let the auto-increment key generator assign one (null is an invalid key)
     const id=await p(tx(name,"readwrite").put(obj)); obj.id=id; return id;
   }
   async function del(name,id){
@@ -875,10 +876,16 @@ window.saveDraft=async function(){
   draft.servingCount=parseInt($("#eServings").value)||0;
   draft.servingDescription=$("#eYield").value.trim();
   draft.updatedAt=Date.now();
-  // editing ingredients invalidates cached nutrition? keep existing unless none.
-  const id=await Store.put("recipes",draft);
-  toast(draft.id?"Saved":"Recipe created"); draft.id=id;
-  openDetail(id);
+  const wasNew=!draft.id;
+  try{
+    const id=await Store.put("recipes",draft);
+    draft.id=id;
+    toast(wasNew?"Recipe created":"Saved");
+    openDetail(id);
+  }catch(e){
+    console.error("Save failed:",e);
+    toast("Couldn't save: "+(e&&e.name?e.name:"unknown error"));
+  }
 };
 
 /* ---------- Ingredient entry sheet ---------- */
@@ -1236,6 +1243,6 @@ window.importData=async function(ev){
   renderList();
 })();
 </script>
-  <!-- Cloudflare Web Analytics --><script defer src='https://static.cloudflareinsights.com/beacon.min.js' data-cf-beacon='{"token": "758442c7e1b7428b8f25f06207a6ddc8"}'></script><!-- End Cloudflare Web Analytics -->
+   <!-- Cloudflare Web Analytics --><script defer src='https://static.cloudflareinsights.com/beacon.min.js' data-cf-beacon='{"token": "758442c7e1b7428b8f25f06207a6ddc8"}'></script><!-- End Cloudflare Web Analytics -->
 </body>
 </html>
