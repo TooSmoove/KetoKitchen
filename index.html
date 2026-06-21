@@ -389,8 +389,13 @@ const Nutrition = (() => {
     "strawberry","reduced fat","nonfat","fat free","fat-free","imitation","substitute","infant",
     "baby","canned","condensed","evaporated","dried","powder","mix","prepared",", light"];
 
-  const key=()=>Settings.usdaKey;
+  // Built-in default key (free, low-value USDA FoodData Central key).
+  // A user-entered key in Settings always overrides this.
+  // For the public FOSS repo, move this into an uncommitted config.js instead.
+  const DEFAULT_USDA_KEY="tcgJHtRB3OW6A7RAKclRKtnDDJWyX86pXxB5JIoQ";
+  const key=()=>Settings.usdaKey||DEFAULT_USDA_KEY;
   const hasKey=()=>!!key();
+  const usingDefaultKey=()=>!Settings.usdaKey;
 
   function scoreMatch(query,desc){
     let s=0; const q=query.toLowerCase(), d=desc.toLowerCase();
@@ -474,15 +479,22 @@ const Nutrition = (() => {
     if(first&&first.toLowerCase()!==s.toLowerCase()) r=await search(first);
     return r;
   }
-  async function suggestions(query,max=8){
+  const _suggestCache=new Map(); // query(lowercased) -> results
+  async function suggestions(query,max=8,signal){
     if(!query||!query.trim()||!hasKey()) return [];
+    const q=query.trim(); const ck=q.toLowerCase();
+    if(_suggestCache.has(ck)) return _suggestCache.get(ck);
     try{
       const url=`${BASE}foods/search?api_key=${encodeURIComponent(key())}`;
       const r=await fetch(url,{method:"POST",headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({query:query.trim(),dataType:["Foundation","SR Legacy","Survey (FNDDS)"],pageSize:max})});
+        body:JSON.stringify({query:q,dataType:["Foundation","SR Legacy","Survey (FNDDS)"],pageSize:max}),signal});
       if(!r.ok) return [];
-      const d=await r.json(); return (d.foods||[]).map(f=>({fdcId:f.fdcId,description:f.description})).filter(x=>x.fdcId&&x.description);
-    }catch(e){ return []; }
+      const d=await r.json();
+      const out=(d.foods||[]).map(f=>({fdcId:f.fdcId,description:f.description})).filter(x=>x.fdcId&&x.description);
+      _suggestCache.set(ck,out);
+      if(_suggestCache.size>120){ _suggestCache.delete(_suggestCache.keys().next().value); }
+      return out;
+    }catch(e){ return []; } // AbortError lands here too — harmless
   }
 
   // Calculate totals for a recipe's ingredients (NutritionService.CalculateAsync)
@@ -506,7 +518,7 @@ const Nutrition = (() => {
     }
     return {totalCalories:cal,totalCarbs:carbs,totalFiber:fiber,totalFat:fat,totalProtein:protein,nutritionIsEstimate:estimate};
   }
-  return { hasKey, suggestions, fetchByFdc, calculate };
+  return { hasKey, usingDefaultKey, suggestions, fetchByFdc, calculate };
 })();
 
 /* ====================================================================
@@ -870,7 +882,7 @@ window.saveDraft=async function(){
 };
 
 /* ---------- Ingredient entry sheet ---------- */
-let ingDraft=null, suggestTimer=null;
+let ingDraft=null, suggestTimer=null, suggestSeq=0, suggestCtrl=null;
 window.openIngredientSheet=function(){
   ingDraft={ amount:1, amountLabel:"1", unit:"cup", name:"", seasonToTaste:false, pinnedFdcId:0,
     hasManualNutrition:false, manualCaloriesPerServing:0,manualCarbsPerServing:0,manualFiberPerServing:0,
@@ -880,10 +892,10 @@ window.openIngredientSheet=function(){
 };
 function ingredientSheetHTML(){
   return `<h3>Add ingredient</h3>
-    <label class="fld">Name</label>
+    <label class="fld">Name <span class="muted" style="font-weight:400;font-size:12px">· start typing to search USDA</span></label>
     <input id="iName" placeholder="e.g. cheddar cheese" value="${esc(ingDraft.name)}" autocomplete="off">
     <div id="iSuggestWrap"></div>
-    ${Nutrition.hasKey()?`<button class="btn ghost sm" style="margin-top:4px;padding-left:0" onclick="doSuggest()">🔎 Find in USDA database</button>`:""}
+    <button class="btn ghost sm" style="margin-top:4px;padding-left:0" onclick="doSuggest()">🔎 Search USDA database</button>
 
     <div id="amountBlock" style="${ingDraft.seasonToTaste?"display:none":""}">
       <label class="fld">Amount</label>
@@ -899,7 +911,7 @@ function ingredientSheetHTML(){
 
     <details style="margin-top:6px">
       <summary class="muted" style="cursor:pointer;font-weight:600">Enter nutrition manually (optional)</summary>
-      <div class="note">Per serving of this food; it'll be scaled to the amount above. Use this when you don't have a USDA key or the food isn't found.</div>
+      <div class="note">Per serving of this food; it'll be scaled to the amount above. Use this when the food isn't in the USDA database (or you prefer exact label values).</div>
       <div class="inline">
         <div><label class="fld">Serving amount</label><input id="mAmt" type="number" step="any" value="${ingDraft.manualServingAmount||""}" placeholder="1"></div>
         <div><label class="fld">Serving unit</label>
@@ -919,19 +931,45 @@ function ingredientSheetHTML(){
     <button class="btn ghost full sm" style="margin-top:8px" onclick="openBarcodeSheet()">📷 Scan / enter a barcode instead</button>`;
 }
 function wireIngredientSheet(){
-  $("#iName").addEventListener("input",e=>{ ingDraft.name=e.target.value; ingDraft.pinnedFdcId=0; });
+  const inp=$("#iName");
+  inp.addEventListener("input",e=>{
+    ingDraft.name=e.target.value; ingDraft.pinnedFdcId=0;
+    liveSuggest(e.target.value);
+  });
   $("#iSeason").addEventListener("change",e=>{ ingDraft.seasonToTaste=e.target.checked;
     $("#amountBlock").style.display=e.target.checked?"none":""; });
 }
-window.pickFrac=f=>{ ingDraft.amountLabel=f; ingDraft.amount=parseAmount(f);
-  $$("#fracRow button").forEach(b=>b.classList.toggle("on",b.textContent===f)); };
-window.doSuggest=async function(){
-  const q=$("#iName").value.trim(); if(!q) return;
-  const wrap=$("#iSuggestWrap"); wrap.innerHTML=`<div style="padding:8px"><span class="spinner"></span></div>`;
-  const s=await Nutrition.suggestions(q);
-  if(!s.length){ wrap.innerHTML=`<p class="muted" style="padding:6px 0">No matches. Try a simpler name or enter nutrition manually.</p>`; return; }
+// Hybrid autocomplete: debounce 400ms, min 3 chars, cancel stale requests, cache.
+function liveSuggest(raw){
+  clearTimeout(suggestTimer);
+  const q=(raw||"").trim();
+  if(q.length<3){ if(suggestCtrl) suggestCtrl.abort(); $("#iSuggestWrap").innerHTML=""; return; }
+  suggestTimer=setTimeout(()=>runSuggest(q,false),400);
+}
+async function runSuggest(q,showSpinnerNow){
+  const wrap=$("#iSuggestWrap"); if(!wrap) return;
+  if(suggestCtrl) suggestCtrl.abort();
+  suggestCtrl=new AbortController();
+  const seq=++suggestSeq;
+  if(showSpinnerNow) wrap.innerHTML=`<div style="padding:8px"><span class="spinner"></span></div>`;
+  let s=[];
+  try{ s=await Nutrition.suggestions(q,8,suggestCtrl.signal); }catch(e){}
+  if(seq!==suggestSeq) return;            // a newer keystroke superseded this one
+  renderSuggestions(s);
+}
+function renderSuggestions(s){
+  const wrap=$("#iSuggestWrap"); if(!wrap) return;
+  if(!s.length){ wrap.innerHTML=`<p class="muted" style="padding:6px 0;font-size:12.5px">No USDA matches — keep typing, or enter nutrition manually below.</p>`; return; }
   wrap.innerHTML=`<div class="suggest">${s.map(x=>
     `<button onclick="pickSuggest(${x.fdcId},'${esc(x.description).replace(/'/g,"\\'")}')">${esc(x.description)}</button>`).join("")}</div>`;
+}
+window.pickFrac=f=>{ ingDraft.amountLabel=f; ingDraft.amount=parseAmount(f);
+  $$("#fracRow button").forEach(b=>b.classList.toggle("on",b.textContent===f)); };
+// Explicit button: force an immediate search regardless of debounce / length.
+window.doSuggest=function(){
+  const q=$("#iName").value.trim();
+  if(q.length<2){ toast("Type an ingredient name first"); return; }
+  clearTimeout(suggestTimer); runSuggest(q,true);
 };
 window.pickSuggest=(fdcId,desc)=>{ ingDraft.pinnedFdcId=fdcId; ingDraft.name=desc; $("#iName").value=desc;
   $("#iSuggestWrap").innerHTML=`<p class="tag keto" style="display:inline-block;margin-top:6px">USDA match pinned ✓</p>`; };
@@ -1120,15 +1158,15 @@ function renderSettings(){
         <label class="toggle"><input type="checkbox" id="setNet" ${Settings.showNetCarbs?"checked":""}><span class="tk"></span></label></div>
     </div>
 
-    <div class="section-h" style="margin-top:20px">Auto nutrition (optional)</div>
+    <div class="section-h" style="margin-top:20px">Auto nutrition</div>
     <div class="card" style="padding:16px">
-      <p class="muted" style="font-size:13.5px;margin:0 0 10px">Automatic ingredient nutrition uses the free USDA FoodData Central API. Get a key in ~30 seconds at <a href="https://fdc.nal.usda.gov/api-key-signup.html" target="_blank" rel="noopener">fdc.nal.usda.gov</a>. Stored only on this device.</p>
-      <input id="setUsda" type="password" placeholder="USDA API key" value="${esc(Settings.usdaKey)}">
+      <p class="muted" style="font-size:13.5px;margin:0 0 10px">Ingredient lookups use the USDA FoodData Central API. A shared key is built in, so search works out of the box. To use your own (1,000 requests/hour), grab a free one at <a href="https://fdc.nal.usda.gov/api-key-signup.html" target="_blank" rel="noopener">fdc.nal.usda.gov</a> and paste it below — it overrides the built-in key and is stored only on this device.</p>
+      <input id="setUsda" type="password" placeholder="Your own USDA API key (optional)" value="${esc(Settings.usdaKey)}">
       <div class="inline" style="margin-top:10px">
         <button class="btn primary" onclick="saveUsda()">Save key</button>
-        ${Settings.usdaKey?`<button class="btn danger" onclick="clearUsda()">Remove</button>`:""}
+        ${Settings.usdaKey?`<button class="btn danger" onclick="clearUsda()">Use built-in key</button>`:""}
       </div>
-      <div class="muted" style="font-size:12px;margin-top:8px">${Settings.usdaKey?"✓ Key saved":"No key — use manual nutrition or barcode lookup instead."}</div>
+      <div class="muted" style="font-size:12px;margin-top:8px">${Settings.usdaKey?"✓ Using your key":"Using the built-in shared key."}</div>
     </div>
 
     <div class="section-h" style="margin-top:20px">Your data</div>
@@ -1146,7 +1184,7 @@ function renderSettings(){
   $("#setNet").addEventListener("change",async e=>{ await Settings.set("showNetCarbs",e.target.checked); toast("Updated"); });
 }
 window.saveUsda=async function(){ await Settings.set("usdaKey",$("#setUsda").value.trim()); toast("USDA key saved"); renderSettings(); };
-window.clearUsda=async function(){ await Settings.set("usdaKey",""); toast("Key removed"); renderSettings(); };
+window.clearUsda=async function(){ await Settings.set("usdaKey",""); toast("Using built-in key"); renderSettings(); };
 
 window.exportData=async function(){
   const data={ version:1, exportedAt:new Date().toISOString(),
